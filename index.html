@@ -1,82 +1,48 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scanner QR BPA TIK</title>
 <script src="https://unpkg.com/html5-qrcode"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;padding:18px;background:#101828;color:#fff;font-family:Arial,sans-serif;text-align:center}
 .wrap{max-width:620px;margin:0 auto}.panel{background:#fff;color:#263445;border-radius:14px;padding:16px}
-h2{margin:4px 0 8px}.muted{color:#667085;font-size:14px}
-#reader{width:100%;margin:14px auto 0}
+h2{margin:4px 0 8px}.muted{color:#667085;font-size:14px}#reader{width:100%;margin:14px auto 0}
 .status{margin:12px 0;padding:12px;border-radius:8px;background:#eef3f9;color:#263445}
-button{border:0;border-radius:8px;padding:12px 18px;background:#174ea6;color:#fff;font-weight:bold}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <h2>Scanner QR BPA TIK</h2>
-  <div class="panel">
-    <p class="muted">Arahkan QR Code kartu siswa ke kamera.</p>
-    <div id="reader"></div>
-    <div class="status" id="status">Menyiapkan scanner...</div>
-    <button id="btnStart" type="button">Mulai Kamera</button>
-    <button id="btnStop" type="button" style="background:#b42318">Hentikan Kamera</button>
-  </div>
-</div>
+button{border:0;border-radius:8px;padding:12px 18px;margin:4px;background:#174ea6;color:#fff;font-weight:bold;cursor:pointer}
+</style></head>
+<body><div class="wrap"><h2>Scanner QR BPA TIK</h2><div class="panel">
+<p class="muted">Arahkan QR Code kartu siswa ke kamera.</p><div id="reader"></div>
+<div class="status" id="status">Scanner siap. Klik Mulai Kamera.</div>
+<button id="btnStart" type="button">Mulai Kamera</button><button id="btnStop" type="button" style="background:#b42318">Hentikan Kamera</button>
+</div></div>
 <script>
-let qr = null;
-let running = false;
-let lastText = '';
-let lastAt = 0;
-const statusEl = document.getElementById('status');
-function kirimStatus(message) {
-  statusEl.textContent = message;
-  if (window.parent && window.parent !== window) {
-    window.parent.postMessage({type:'BPA_TIK_SCANNER_STATUS',message}, '*');
-  }
+let qr=null,running=false,lastText='',lastAt=0;
+const statusEl=document.getElementById('status');
+function status(message){statusEl.textContent=message;}
+async function startCamera(){
+ if(running)return;
+ try{
+  if(typeof Html5Qrcode==='undefined')throw new Error('Library QR tidak berhasil dimuat. Periksa koneksi internet.');
+  const cameras=await Html5Qrcode.getCameras();if(!cameras||!cameras.length)throw new Error('Kamera tidak ditemukan.');
+  const preferred=cameras.find(c=>/back|rear|environment|belakang/i.test(c.label))||cameras[0];
+  qr=new Html5Qrcode('reader');
+  await qr.start(preferred.id,{fps:10,qrbox:{width:250,height:250}},decoded=>{
+   const now=Date.now();if(decoded===lastText&&now-lastAt<2500)return;lastText=decoded;lastAt=now;
+   if(window.opener&&!window.opener.closed)window.opener.postMessage({type:'BPA_TIK_QR',kodeQR:decoded},'*');
+   status('QR terbaca. Menunggu hasil validasi dari aplikasi...');
+  },()=>{});
+  running=true;status('Kamera aktif. Arahkan QR kartu siswa ke kamera.');
+ }catch(e){status('Kamera gagal diaktifkan: '+(e.message||e));}
 }
-async function startCamera() {
-  if (running) return;
-  try {
-    if (typeof Html5Qrcode === 'undefined') throw new Error('Library QR tidak berhasil dimuat. Periksa koneksi internet.');
-    const cameras = await Html5Qrcode.getCameras();
-    if (!cameras || !cameras.length) throw new Error('Kamera tidak ditemukan.');
-    const preferred = cameras.find(c => /back|rear|environment|belakang/i.test(c.label)) || cameras[0];
-    qr = new Html5Qrcode('reader');
-    await qr.start(preferred.id, {fps:10, qrbox:{width:250,height:250}}, decoded => {
-      const now = Date.now();
-      if (decoded === lastText && now-lastAt < 2500) return;
-      lastText = decoded; lastAt = now;
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({type:'BPA_TIK_QR',kodeQR:decoded}, '*');
-      }
-      kirimStatus('QR terbaca. Silakan lanjutkan ke kartu berikutnya.');
-    }, () => {});
-    running = true;
-    kirimStatus('Kamera aktif. Arahkan QR kartu siswa ke kamera.');
-  } catch (e) {
-    kirimStatus('Kamera gagal diaktifkan: ' + (e.message || e));
-  }
-}
-async function stopCamera() {
-  if (qr && running) {
-    try { await qr.stop(); await qr.clear(); } catch(e) {}
-  }
-  qr = null; running = false;
-  kirimStatus('Kamera dihentikan.');
-}
-document.getElementById('btnStart').addEventListener('click', startCamera);
-document.getElementById('btnStop').addEventListener('click', stopCamera);
-window.addEventListener('message', event => {
-  if (event.source !== window.parent) return;
-  if (!event.data || typeof event.data !== 'object') return;
-  if (event.data.type === 'BPA_TIK_START') startCamera();
-  if (event.data.type === 'BPA_TIK_STOP') stopCamera();
+async function stopCamera(){if(qr&&running){try{await qr.stop();await qr.clear();}catch(e){}}qr=null;running=false;status('Kamera dihentikan.');}
+document.getElementById('btnStart').addEventListener('click',startCamera);
+document.getElementById('btnStop').addEventListener('click',stopCamera);
+window.addEventListener('message',event=>{
+ if(!window.opener||event.source!==window.opener)return;
+ const d=event.data;if(!d||typeof d!=='object')return;
+ if(d.type==='BPA_TIK_RESULT')status(d.message||'Hasil absensi diterima.');
 });
-window.parent && window.parent !== window &&
-  window.parent.postMessage({type:'BPA_TIK_SCANNER_READY'}, '*');
-</script>
-</body>
-</html>
+window.addEventListener('beforeunload',()=>{if(running&&qr)qr.stop().catch(()=>{});});
+if(window.opener&&!window.opener.closed)window.opener.postMessage({type:'BPA_TIK_SCANNER_READY'},'*');
+</script></body></html>
