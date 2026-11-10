@@ -1,362 +1,82 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <title>Scanner QR BPA TIK</title>
-
-  <script src="https://unpkg.com/html5-qrcode"></script>
-
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      padding: 20px;
-      font-family: Arial, sans-serif;
-      background: #f3f6fa;
-      color: #263445;
-    }
-
-    .container {
-      max-width: 650px;
-      margin: auto;
-    }
-
-    .header {
-      background: #174ea6;
-      color: white;
-      padding: 22px;
-      border-radius: 12px;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 18px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-
-    select, button {
-      width: 100%;
-      padding: 13px;
-      margin-top: 10px;
-      border-radius: 7px;
-      border: 1px solid #ccd4df;
-      font-size: 15px;
-    }
-
-    button {
-      border: none;
-      background: #174ea6;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      background: #aab5c3;
-      cursor: not-allowed;
-    }
-
-    .btn-stop {
-      background: #c62828;
-    }
-
-    #reader {
-      width: 100%;
-      margin-top: 15px;
-    }
-
-    .status {
-      padding: 13px;
-      margin-top: 15px;
-      border-radius: 7px;
-      background: #eef3f9;
-      text-align: center;
-    }
-
-    .result {
-      padding: 15px;
-      margin-top: 15px;
-      border-radius: 8px;
-      background: #e8f5e9;
-      color: #1b5e20;
-      overflow-wrap: anywhere;
-      display: none;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanner QR BPA TIK</title>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#101828;color:#fff;font-family:Arial,sans-serif;text-align:center}
+.wrap{max-width:620px;margin:0 auto}.panel{background:#fff;color:#263445;border-radius:14px;padding:16px}
+h2{margin:4px 0 8px}.muted{color:#667085;font-size:14px}
+#reader{width:100%;margin:14px auto 0}
+.status{margin:12px 0;padding:12px;border-radius:8px;background:#eef3f9;color:#263445}
+button{border:0;border-radius:8px;padding:12px 18px;background:#174ea6;color:#fff;font-weight:bold}
+</style>
 </head>
-
 <body>
-
-<div class="container">
-
-  <div class="header">
-    <h2>Scanner QR BPA TIK</h2>
-    <p>SMP PGRI Klapanunggal</p>
-  </div>
-
-  <div class="card">
-
-    <label for="cameraSelect">
-      Pilih Kamera
-    </label>
-
-    <select id="cameraSelect">
-      <option value="">Mendeteksi kamera...</option>
-    </select>
-
-    <button type="button" id="btnMulai">
-      📷 Mulai Scan
-    </button>
-
-    <button type="button" id="btnBerhenti"
-            class="btn-stop" disabled>
-      Berhenti Scan
-    </button>
-
+<div class="wrap">
+  <h2>Scanner QR BPA TIK</h2>
+  <div class="panel">
+    <p class="muted">Arahkan QR Code kartu siswa ke kamera.</p>
     <div id="reader"></div>
-
-    <div class="status" id="pesan">
-      Scanner siap digunakan.
-    </div>
-
-    <div class="result" id="hasil">
-      <strong>QR berhasil dibaca:</strong>
-      <p id="kodeQR"></p>
-      <p id="statusKirim"></p>
-    </div>
-
+    <div class="status" id="status">Menyiapkan scanner...</div>
+    <button id="btnStart" type="button">Mulai Kamera</button>
+    <button id="btnStop" type="button" style="background:#b42318">Hentikan Kamera</button>
   </div>
-
 </div>
-
 <script>
-
-let scanner = null;
-let kameraAktif = false;
-let sedangMembaca = false;
-
-const cameraSelect =
-  document.getElementById('cameraSelect');
-
-const btnMulai =
-  document.getElementById('btnMulai');
-
-const btnBerhenti =
-  document.getElementById('btnBerhenti');
-
-const pesan =
-  document.getElementById('pesan');
-
-const hasil =
-  document.getElementById('hasil');
-
-const kodeQR =
-  document.getElementById('kodeQR');
-
-const statusKirim =
-  document.getElementById('statusKirim');
-
-function tampilkanPesan(teks) {
-  pesan.textContent = teks;
-}
-
-// Mendeteksi kamera
-async function muatKamera() {
-
-  try {
-
-    const daftarKamera =
-      await Html5Qrcode.getCameras();
-
-    cameraSelect.innerHTML = '';
-
-    if (!daftarKamera || daftarKamera.length === 0) {
-      throw new Error('Kamera tidak ditemukan.');
-    }
-
-    daftarKamera.forEach(function(kamera, index) {
-
-      const option = document.createElement('option');
-
-      option.value = kamera.id;
-      option.textContent =
-        kamera.label || 'Kamera ' + (index + 1);
-
-      cameraSelect.appendChild(option);
-
-    });
-
-    tampilkanPesan('Kamera siap digunakan.');
-
-  } catch (error) {
-
-    tampilkanPesan(
-      'Gagal mendeteksi kamera: ' + error.message
-    );
-
+let qr = null;
+let running = false;
+let lastText = '';
+let lastAt = 0;
+const statusEl = document.getElementById('status');
+function kirimStatus(message) {
+  statusEl.textContent = message;
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({type:'BPA_TIK_SCANNER_STATUS',message}, '*');
   }
 }
-
-// Mulai scanner
-async function mulaiScan() {
-
-  if (!cameraSelect.value) {
-    tampilkanPesan('Pilih kamera terlebih dahulu.');
-    return;
-  }
-
-  if (typeof Html5Qrcode === 'undefined') {
-    tampilkanPesan('Library QR gagal dimuat.');
-    return;
-  }
-
+async function startCamera() {
+  if (running) return;
   try {
-
-    scanner = new Html5Qrcode('reader');
-
-    btnMulai.disabled = true;
-    cameraSelect.disabled = true;
-
-    await scanner.start(
-      cameraSelect.value,
-      {
-        fps: 10,
-        qrbox: {
-          width: 250,
-          height: 250
-        }
-      },
-
-      async function(decodedText) {
-
-        if (sedangMembaca) return;
-
-        sedangMembaca = true;
-
-        await hentikanScan();
-
-        kodeQR.textContent = decodedText;
-        hasil.style.display = 'block';
-
-        // Periksa format QR BPA TIK
-        if (!decodedText.startsWith('BPA-TIK|')) {
-
-          statusKirim.textContent =
-            'QR bukan kartu resmi BPA TIK.';
-
-          tampilkanPesan('QR tidak valid.');
-          return;
-        }
-
-        // Kirim hasil QR ke halaman BPA TIK
-        if (window.opener && !window.opener.closed) {
-
-          window.opener.postMessage(
-            {
-              type: 'BPA_TIK_QR',
-              kodeQR: decodedText
-            },
-            '*'
-          );
-
-          statusKirim.textContent =
-            'Hasil QR dikirim ke aplikasi BPA TIK.';
-
-          tampilkanPesan(
-            'QR berhasil dikirim. Silakan lihat hasil di aplikasi BPA TIK.'
-          );
-
-        } else {
-
-          statusKirim.textContent =
-            'Halaman BPA TIK tidak terhubung.';
-
-          tampilkanPesan(
-            'Aplikasi BPA TIK tidak ditemukan. Buka scanner dari aplikasi BPA TIK.'
-          );
-
-        }
-
-      },
-
-      function(errorMessage) {
-        // Mengabaikan kegagalan pembacaan sementara
+    if (typeof Html5Qrcode === 'undefined') throw new Error('Library QR tidak berhasil dimuat. Periksa koneksi internet.');
+    const cameras = await Html5Qrcode.getCameras();
+    if (!cameras || !cameras.length) throw new Error('Kamera tidak ditemukan.');
+    const preferred = cameras.find(c => /back|rear|environment|belakang/i.test(c.label)) || cameras[0];
+    qr = new Html5Qrcode('reader');
+    await qr.start(preferred.id, {fps:10, qrbox:{width:250,height:250}}, decoded => {
+      const now = Date.now();
+      if (decoded === lastText && now-lastAt < 2500) return;
+      lastText = decoded; lastAt = now;
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({type:'BPA_TIK_QR',kodeQR:decoded}, '*');
       }
-
-    );
-
-    kameraAktif = true;
-    btnBerhenti.disabled = false;
-
-    tampilkanPesan(
-      'Kamera aktif. Arahkan QR kartu siswa ke kamera.'
-    );
-
-  } catch (error) {
-
-    scanner = null;
-    kameraAktif = false;
-
-    btnMulai.disabled = false;
-    cameraSelect.disabled = false;
-
-    tampilkanPesan(
-      'Gagal mengaktifkan kamera: ' + error.message
-    );
-
+      kirimStatus('QR terbaca. Silakan lanjutkan ke kartu berikutnya.');
+    }, () => {});
+    running = true;
+    kirimStatus('Kamera aktif. Arahkan QR kartu siswa ke kamera.');
+  } catch (e) {
+    kirimStatus('Kamera gagal diaktifkan: ' + (e.message || e));
   }
 }
-
-// Menghentikan scanner
-async function hentikanScan() {
-
-  if (scanner && kameraAktif) {
-
-    try {
-      await scanner.stop();
-      await scanner.clear();
-    } catch (error) {
-      console.log(error);
-    }
-
+async function stopCamera() {
+  if (qr && running) {
+    try { await qr.stop(); await qr.clear(); } catch(e) {}
   }
-
-  scanner = null;
-  kameraAktif = false;
-
-  btnMulai.disabled = false;
-  btnBerhenti.disabled = true;
-  cameraSelect.disabled = false;
-
+  qr = null; running = false;
+  kirimStatus('Kamera dihentikan.');
 }
-
-// Tombol
-btnMulai.addEventListener('click', mulaiScan);
-
-btnBerhenti.addEventListener('click', async function() {
-
-  await hentikanScan();
-
-  sedangMembaca = false;
-
-  tampilkanPesan('Scanner dihentikan.');
-
+document.getElementById('btnStart').addEventListener('click', startCamera);
+document.getElementById('btnStop').addEventListener('click', stopCamera);
+window.addEventListener('message', event => {
+  if (event.source !== window.parent) return;
+  if (!event.data || typeof event.data !== 'object') return;
+  if (event.data.type === 'BPA_TIK_START') startCamera();
+  if (event.data.type === 'BPA_TIK_STOP') stopCamera();
 });
-
-// Deteksi kamera saat halaman dibuka
-muatKamera();
-
+window.parent && window.parent !== window &&
+  window.parent.postMessage({type:'BPA_TIK_SCANNER_READY'}, '*');
 </script>
-
 </body>
 </html>
