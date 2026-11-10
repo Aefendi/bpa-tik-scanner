@@ -1,0 +1,307 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scanner QR BPA TIK</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #263445;
+    }
+
+    .container {
+      max-width: 650px;
+      margin: 30px auto;
+    }
+
+    .header {
+      background: #174ea6;
+      color: white;
+      padding: 25px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .card {
+      background: white;
+      padding: 22px;
+      margin-top: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px #00000010;
+    }
+
+    select, button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 12px;
+      border-radius: 7px;
+      font-size: 15px;
+    }
+
+    select {
+      border: 1px solid #ccd4df;
+      background: white;
+    }
+
+    button {
+      border: none;
+      background: #174ea6;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #aab5c3;
+      cursor: not-allowed;
+    }
+
+    .stop {
+      background: #c62828;
+    }
+
+    #reader {
+      width: 100%;
+      margin-top: 18px;
+    }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 8px;
+      background: #eef3f9;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
+    .result {
+      margin-top: 18px;
+      padding: 16px;
+      border-radius: 8px;
+      background: #e8f5e9;
+      color: #1b5e20;
+      display: none;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h2>SCAN QR ABSENSI</h2>
+    <p>BPA TIK - SMP PGRI Klapanunggal</p>
+  </div>
+
+  <div class="card">
+
+    <h3>Pemindaian QR Code Siswa</h3>
+
+    <label for="kamera">Pilih Kamera</label>
+    <select id="kamera">
+      <option value="">Mendeteksi kamera...</option>
+    </select>
+
+    <button id="btnMulai" disabled>
+      AKTIFKAN KAMERA
+    </button>
+
+    <button id="btnStop" class="stop" disabled>
+      MATIKAN KAMERA
+    </button>
+
+    <div id="reader"></div>
+
+    <div class="status" id="status">
+      Menyiapkan scanner...
+    </div>
+
+    <div class="result" id="hasil">
+      <h3>QR CODE BERHASIL DIBACA</h3>
+      <p id="kodeQR"></p>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+const pilihanKamera = document.getElementById('kamera');
+const btnMulai = document.getElementById('btnMulai');
+const btnStop = document.getElementById('btnStop');
+const status = document.getElementById('status');
+const hasil = document.getElementById('hasil');
+const kodeQR = document.getElementById('kodeQR');
+
+let scanner = null;
+let kameraAktif = false;
+let sedangMembaca = false;
+
+function pesan(teks) {
+  status.textContent = teks;
+}
+
+// Mendeteksi kamera
+async function deteksiKamera() {
+
+  try {
+
+    if (typeof Html5Qrcode === 'undefined') {
+      throw new Error('Library QR Code tidak berhasil dimuat.');
+    }
+
+    const daftar = await Html5Qrcode.getCameras();
+
+    pilihanKamera.innerHTML = '';
+
+    if (!daftar || daftar.length === 0) {
+      throw new Error('Kamera tidak ditemukan.');
+    }
+
+    daftar.forEach(function(kamera, index) {
+
+      const option = document.createElement('option');
+
+      option.value = kamera.id;
+      option.textContent = kamera.label || 'Kamera ' + (index + 1);
+
+      pilihanKamera.appendChild(option);
+
+    });
+
+    // Memilih kamera pertama
+    const kameraBelakang = daftar.find(k =>
+      /back|rear|environment/i.test(k.label || '')
+    );
+
+    if (kameraBelakang) {
+      pilihanKamera.value = kameraBelakang.id;
+    }
+
+    btnMulai.disabled = false;
+    pesan('Kamera ditemukan. Silakan aktifkan kamera.');
+
+  } catch (error) {
+
+    pesan('Gagal mendeteksi kamera: ' + error.message);
+
+  }
+}
+
+// Mengaktifkan kamera
+async function mulaiKamera() {
+
+  const idKamera = pilihanKamera.value;
+
+  if (!idKamera) {
+    pesan('Silakan pilih kamera terlebih dahulu.');
+    return;
+  }
+
+  btnMulai.disabled = true;
+  pesan('Meminta izin akses kamera...');
+
+  try {
+
+    scanner = new Html5Qrcode('reader');
+
+    await scanner.start(
+      idKamera,
+      {
+        fps: 10,
+        qrbox: {
+          width: 250,
+          height: 250
+        }
+      },
+
+      function(teksTerbaca) {
+
+        if (sedangMembaca) return;
+
+        sedangMembaca = true;
+
+        kodeQR.textContent = teksTerbaca;
+        hasil.style.display = 'block';
+
+        pesan('QR Code berhasil dibaca.');
+
+        matikanKamera();
+
+      },
+
+      function(error) {
+        // Mengabaikan kegagalan pembacaan sementara
+      }
+    );
+
+    kameraAktif = true;
+
+    btnStop.disabled = false;
+    pilihanKamera.disabled = true;
+
+    pesan('KAMERA AKTIF. Arahkan QR Code ke kamera.');
+
+  } catch (error) {
+
+    scanner = null;
+    btnMulai.disabled = false;
+
+    pesan(
+      'Kamera gagal diaktifkan: ' +
+      (error.message || String(error))
+    );
+
+  }
+}
+
+// Mematikan kamera
+async function matikanKamera() {
+
+  if (scanner && kameraAktif) {
+
+    try {
+      await scanner.stop();
+      await scanner.clear();
+    } catch (error) {
+      console.log(error);
+    }
+
+  }
+
+  scanner = null;
+  kameraAktif = false;
+  sedangMembaca = false;
+
+  btnMulai.disabled = false;
+  btnStop.disabled = true;
+  pilihanKamera.disabled = false;
+
+}
+
+// Tombol
+btnMulai.addEventListener('click', mulaiKamera);
+btnStop.addEventListener('click', matikanKamera);
+
+// Jalankan deteksi
+deteksiKamera();
+
+</script>
+
+</body>
+</html>
